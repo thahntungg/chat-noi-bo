@@ -1,4 +1,4 @@
 flask
 flask-socketio
-eventlet
-flask-sqlalchemy
+gevent-websocket
+gevent
