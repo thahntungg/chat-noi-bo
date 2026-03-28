@@ -7,9 +7,9 @@ from flask_socketio import SocketIO, emit
 import emoji
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat8a_super_secret_2026'
+app.config['SECRET_KEY'] = 'chat8a_2026_pro'
 
-# Cấu hình tối giản để tránh xung đột RLock
+# Cấu hình SocketIO tối ưu cho môi trường Web
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 @app.route('/')
@@ -18,10 +18,13 @@ def index():
 
 @socketio.on('message')
 def handle_message(data):
+    # data: {'text': '...', 'sender_name': '...'}
     if data and 'text' in data:
-        msg_text = emoji.emojize(data['text'], language='alias')
+        # Chuyển đổi emoji (ví dụ :smile: -> 😄)
+        msg_unicode = emoji.emojize(data['text'], language='alias')
+        
         emit('render_message', {
-            'text': msg_text,
+            'text': msg_unicode,
             'sender_name': data.get('sender_name', 'Thành viên 8A')
         }, broadcast=True)
 
