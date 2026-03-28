@@ -1,80 +1,125 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat 8A - Kết nối</title>
+    <title>Messenger 8A</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
-        :root { --p: #0084ff; --bg: #f0f2f5; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        body { background: var(--bg); height: 100vh; display: flex; justify-content: center; align-items: center; }
+        * { box-sizing: border-box; }
+        body { 
+            margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5; height: 100vh; display: flex; flex-direction: column;
+        }
+        /* Header phong cách Messenger */
+        .header {
+            padding: 10px 15px; background: white; border-bottom: 1px solid #ddd;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 10;
+        }
+        .header h3 { margin: 0; color: #050505; font-size: 18px; }
         
-        #login-screen { position: fixed; inset: 0; background: var(--bg); z-index: 100; display: flex; justify-content: center; align-items: center; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
+        /* Khung chat */
+        #chat {
+            flex: 1; overflow-y: auto; padding: 15px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
         
-        .container { display: none; width: 95%; max-width: 800px; height: 85vh; background: white; border-radius: 15px; flex-direction: column; overflow: hidden; }
-        .msg-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fafafa; }
-        .msg { max-width: 75%; padding: 10px 15px; border-radius: 15px; font-size: 15px; line-height: 1.4; }
-        .sent { align-self: flex-end; background: var(--p); color: white; }
-        .received { align-self: flex-start; background: #e4e6eb; color: black; }
-        .name { font-size: 10px; opacity: 0.7; display: block; margin-bottom: 2px; }
+        /* Bong bóng chat */
+        .msg {
+            max-width: 75%; padding: 8px 12px; border-radius: 18px;
+            font-size: 15px; line-height: 1.4; word-wrap: break-word;
+            position: relative;
+        }
+        .msg.others {
+            background-color: #e4e6eb; color: black; align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .msg.me {
+            background-color: #0084ff; color: white; align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .sender-name { font-size: 11px; color: #65676b; margin-bottom: 2px; }
 
-        .input-area { padding: 15px; border-top: 1px solid #eee; display: flex; gap: 10px; }
-        input { flex: 1; padding: 10px 15px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
-        button { background: var(--p); color: white; border: none; padding: 0 20px; border-radius: 20px; cursor: pointer; }
+        /* Thanh nhập liệu chân trang */
+        .input-area {
+            padding: 10px; background: white; border-top: 1px solid #ddd;
+            display: flex; align-items: center; gap: 10px;
+        }
+        input {
+            flex: 1; padding: 10px 15px; border-radius: 20px;
+            border: 1px solid #ddd; background: #f0f2f5; outline: none;
+        }
+        button {
+            background: none; border: none; color: #0084ff;
+            font-weight: bold; font-size: 16px; cursor: pointer;
+        }
+        
+        /* Nút Admin ẩn */
+        #troll-btn { 
+            width: 30px; height: 30px; border-radius: 50%; 
+            background: #ff4444; color: white; font-size: 10px; 
+            border: none; cursor: pointer; opacity: 0.3;
+        }
     </style>
 </head>
 <body>
-
-<div id="login-screen">
-    <div class="card">
-        <h2 style="margin-bottom:15px; color:var(--p)">Chat 8A</h2>
-        <input type="text" id="user-in" placeholder="Nhập tên bạn..." style="width:100%; margin-bottom:10px">
-        <button onclick="join()" style="width:100%; height:40px">Vào Chat</button>
+    <div class="header">
+        <h3>Lớp 8A Chat</h3>
+        <button id="troll-btn" title="Admin Only">!</button>
     </div>
-</div>
 
-<div class="container" id="chat-ui">
-    <div style="padding:15px; border-bottom:1px solid #eee"><b>Nhóm chat lớp 8A</b></div>
-    <div class="msg-box" id="box"></div>
+    <div id="chat">
+        </div>
+
     <div class="input-area">
-        <input type="text" id="msg-in" placeholder="Nhập tin nhắn..." autocomplete="off">
-        <button onclick="send()">Gửi</button>
+        <input id="myMessage" type="text" placeholder="Nhắn tin...">
+        <button id="sendBtn">Gửi</button>
     </div>
-</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-<script>
-    const socket = io({ transports: ['websocket', 'polling'] });
-    let myName = "";
+    <script>
+        $(document).ready(function() {
+            var socket = io();
+            var myName = prompt("Tên bạn là gì?", "Bạn");
 
-    function join() {
-        const input = document.getElementById('user-in');
-        if(input.value.trim()) {
-            myName = input.value.trim();
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('chat-ui').style.display = 'flex';
-        }
-    }
+            socket.on('message', function(data) {
+                var parts = data.split(": ");
+                var sender = parts[0];
+                var text = parts.slice(1).join(": ");
+                
+                var isMe = (sender === myName);
+                var msgClass = isMe ? 'me' : 'others';
+                
+                var html = '<div style="display: flex; flex-direction: column;' + (isMe ? 'align-items: flex-end;' : '') + '">';
+                if (!isMe) html += '<span class="sender-name">' + sender + '</span>';
+                html += '<div class="msg ' + msgClass + '">' + text + '</div></div>';
+                
+                $('#chat').append(html);
+                $('#chat').scrollTop($('#chat')[0].scrollHeight);
+            });
 
-    function send() {
-        const input = document.getElementById('msg-in');
-        if(input.value.trim()) {
-            socket.emit('message', { text: input.value, sender_name: myName });
-            input.value = "";
-        }
-    }
+            $('#sendBtn').on('click', function() {
+                var text = $('#myMessage').val();
+                if(text) {
+                    socket.send(myName + ": " + text);
+                    $('#myMessage').val('');
+                }
+            });
 
-    socket.on('render_message', (data) => {
-        const isMe = data.sender_name === myName;
-        const div = document.createElement('div');
-        div.className = `msg ${isMe ? 'sent' : 'received'}`;
-        div.innerHTML = `<span class="name">${isMe ? 'Bạn' : data.sender_name}</span>${data.text}`;
-        document.getElementById('box').appendChild(div);
-        document.getElementById('box').scrollTop = document.getElementById('box').scrollHeight;
-    });
+            // Gửi tin bằng phím Enter
+            $('#myMessage').keypress(function(e) {
+                if(e.which == 13) $('#sendBtn').click();
+            });
 
-    document.getElementById('msg-in').addEventListener('keypress', e => { if(e.key === 'Enter') send() });
-</script>
+            $('#troll-btn').on('click', function() {
+                socket.emit('troll_all');
+            });
+
+            socket.on('execute_troll', function() {
+                alert("Admin Tùng đang điều khiển máy bạn!");
+                window.location.href = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+            });
+        });
+    </script>
 </body>
 </html>
